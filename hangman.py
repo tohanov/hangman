@@ -4,26 +4,30 @@ from os.path import isfile, abspath
 # region NEW FUNCTIONS
 def center_string(string):
     """
-    Centering given string in terminal.
+    Formatting given string to be centered in terminal when printed.
 
     :param string: String that's intended for output in terminal.
     :type string: str
     :return: The string, modified to be centered in terminal.
     :rtype: str
     """
+    NEW_LINE = '\n'
+    PAD_UNIT = ' '
+
     term_col_num = get_terminal_size().columns
 
     # padding of each line of the string will be done according to the size of the longest line in that string
     # in order for everything to be aligned correctly
-    string_lines_list = string.split('\n')
+    string_lines_list = string.split(NEW_LINE)
     longest_len = len(max(string_lines_list, key=len))
 
     # preparing the padding for each line of the string
-    pad_str = ' ' * ((term_col_num - longest_len) // 2)
+    pad_str = PAD_UNIT * ((term_col_num - longest_len) // 2)
 
     # the first line wont be padded on it's own
     string_lines_list[0] = pad_str + string_lines_list[0]
-    return ('\n' + pad_str).join(string_lines_list)
+    # adding another newline to space-out on-screen text
+    return NEW_LINE + (NEW_LINE + pad_str).join(string_lines_list)
 
 
 def input_centered(string):
@@ -38,28 +42,39 @@ def input_centered(string):
     return input(center_string(string))
 
 
-def print_centered(string):
+def print_centered(string, use_logo=False):
     """
     A wrapper around the stock print function, except that the text will be centered in the terminal.
+    
     :param string: The text to be printed.
+    :param use_logo: Whether to print the logo before the string.
     :type string: str
+    :type use_logo: bool
     :return: None
     """
+    if use_logo:
+        print_game_logo()
+
     print(center_string(string))
 
     return None
 
 
-def sys_comment(comment):
+def sys_comment(comment, is_error=False):
     """
     Game system comment formatting before output to console.
 
     :param comment: The text to be printed as a comment.
+    :param is_error: If the comment is an error comment.
     :type comment: str
+    :type is_error: bool
     :return: None
     """
     COMMENT_STR = "[*]"
-    print_centered("{} {}".format(COMMENT_STR, comment))
+    if is_error:
+        COMMENT_STR = "[X]"
+
+    print_centered("{} {} {}".format(COMMENT_STR, comment, COMMENT_STR), use_logo=True)
 
     return None
 
@@ -97,9 +112,9 @@ def get_verified_input(prompt, verify_by_func, msg_wrong=None):
     answer = input_centered(prompt)
     # the answer must match conditions of verification
     while not verify_by_func(answer):
-        sys_comment(msg_wrong)
+        sys_comment(msg_wrong, is_error=True)
         answer = input_centered(prompt)
-
+    
     # at this point, the answer is verified to be valid
     return answer
 
@@ -151,10 +166,7 @@ def get_yes_no(question):
     """
     complete_question = question + " ([Y]es/[N]o): "
 
-    answer = get_verified_input(
-        prompt=complete_question,
-        verify_by_func=is_yes_or_no
-    )
+    answer = get_verified_input(prompt=complete_question, verify_by_func=is_yes_or_no)
 
     # returns True is yes, False if no
     return is_yes_or_no(answer, check_no=False)
@@ -175,13 +187,15 @@ def change_field(field_name, verify_input_func, error_msg=None, input_mod_func=N
     :return: User input for the setting that's supposed to be changed.
     :rtype: Uncertain.
     """
+
     # prompt to be displayed to user when asking to change the setting
     prompt = "Enter the {}: ".format(field_name)
     field_val = get_verified_input(prompt=prompt, verify_by_func=verify_input_func, msg_wrong=error_msg)
 
-    if input_mod_func is not None:
+    if not input_mod_func is None:
         # modifying input before printing in system feedback
         field_val = input_mod_func(field_val)
+
     sys_comment('Using {}: {}'.format(field_name, field_val))
 
     # returning new value of setting
@@ -231,7 +245,30 @@ def show_current_game_state(num_of_tries, secret_word, old_letters_guessed):
     """
     print_hangman(num_of_tries)
     # 4.
-    print_centered(show_hidden_word(secret_word, old_letters_guessed))
+    print_show_hidden_word_box(secret_word, old_letters_guessed)
+
+    return None
+
+
+def print_show_hidden_word_box(secret_word, old_letters_guessed, use_logo=False):
+    """
+    Prints the hidden word inside an ascii box.
+
+    :param secret_word: The word for the player to guess.
+    :param old_letters_guessed: List of letters the user guessed previously.
+    :param use_logo: Whether or not to print the hangman game ascii logo.
+    :type secret_word: str
+    :type old_letters_guessed: list
+    :type use_logo: bool
+    :return: None
+    """
+    # strings for the box drawing
+    bottom_top_box_line = chr(9552) * (len(secret_word) * 2 + 5)
+    right_left_line = chr(9553)
+    corners = ( (chr(9556), chr(9559)), (chr(9562), chr(9565)))
+    
+    # using format to assemble the box around the word
+    print_centered("{0}{bl}{1}\n{2}   {hw}   {2}\n{3}{bl}{4}".format(corners[0][0], corners[0][1], right_left_line, corners[1][0], corners[1][1], hw=show_hidden_word(secret_word, old_letters_guessed), bl=bottom_top_box_line), use_logo=use_logo)
 
     return None
 
@@ -242,6 +279,7 @@ def print_game_logo():
 
     :return: None
     """
+
     HANGMAN_ASCII_ART = r"""
   _    _
  | |  | |
@@ -252,11 +290,13 @@ def print_game_logo():
                       __/ |
                      |___/
 """
+    
+    clear_player_screen()
     print_centered(HANGMAN_ASCII_ART)
 
     return None
 # endregion NEW FUNCTIONS
-
+#############################################################################################
 # region BASE FUNCTIONS
 def show_hidden_word(secret_word, old_letters_guessed):
     """
@@ -313,12 +353,14 @@ def try_update_letter_guessed(letter_guessed, old_letters_guessed):
     :return: True if the guessed letter is valid and False - otherwise
     :rtype: bool
     """
+    ARROW_STR = ' -> '
+    X_STR = 'X'
     letter_lower = letter_guessed.lower()
-
+    
     if not check_valid_input(letter_lower, old_letters_guessed):
-        print_centered('X')
+        print_centered(X_STR, use_logo=True)
         # printing previous guesses, alphabetically-sorted, with arrows between them
-        print_centered(' -> '.join(sorted(old_letters_guessed)))
+        print_centered(ARROW_STR.join(sorted(old_letters_guessed)))
         return False
 
     # letter is valid - adding to list of guessed letters
@@ -442,15 +484,12 @@ def hangman(secret_word):
     old_letters_guessed = []    # list for keeping track of guessed letters
     num_of_tries = 0            # counter for wrong guesses
 
-    clear_player_screen()
     # 3. + 4.
     show_current_game_state(num_of_tries, secret_word, old_letters_guessed)
 
     # 5.
     while num_of_tries < MAX_TRIES:
         letter_guessed = input_centered(LETTER_PROMPT)
-        # clear the screen after prompting for letter. next screen = feedback from guess + next prompt
-        clear_player_screen()
         is_valid_guess = try_update_letter_guessed(letter_guessed, old_letters_guessed)
 
         # 6.
@@ -458,7 +497,7 @@ def hangman(secret_word):
         if is_valid_guess:
             # if correct guess
             if letter_guessed in secret_word:
-                print_centered(show_hidden_word(secret_word, old_letters_guessed))
+                print_show_hidden_word_box(secret_word, old_letters_guessed, use_logo=True)
 
                 if check_win(secret_word, old_letters_guessed):
                     # 7.
@@ -468,7 +507,7 @@ def hangman(secret_word):
 
             # if technically valid, but wrong guess
             else:
-                print_centered(SAD_FACE)
+                print_centered(SAD_FACE, use_logo=True)
 
                 num_of_tries += 1
                 show_current_game_state(num_of_tries, secret_word, old_letters_guessed)
@@ -478,38 +517,45 @@ def hangman(secret_word):
                     print_centered(LOSE_STR)
 
     return None
-# endregion BASE FUNCTION
+# endregion BASE FUNCTIONS
 
 
 def main():
     """
-    Prompts the user for:
-    1. A path to a word-list file,
-    2. An index of a word in that list (counting from 1).
+    Main function that's tying all the components of the game together.
 
     :return: None
     """
-    clear_player_screen()
+
+    # after first round it will ask if want to change word list
+    first_round = True
+
     # 1.
     print_game_logo()
-    # 2.1.
-    word_list_path = change_word_list()
 
     # will break out of loop when the player wouldn't want another round
     while True:
-        # 2.2.
-        secret_word = change_secret_word(word_list_path)
-        # starting the game
-        hangman(secret_word)
-
-        # finished the game - ask if want another round, and if so - ask if want to change word-list
-        if get_yes_no("Would you like to play another game?"):
-            sys_comment("Starting another game")
-
-            if get_yes_no("Would you want to switch to a different word-list?"):
+        if not first_round:
+            if get_yes_no("Would you like to switch to a different word-list?"):
+                # 2.1.
+                print_game_logo()
                 word_list_path = change_word_list()
             else:
                 sys_comment("Playing with the same word-list")
+        else:
+            # 2.1.
+            word_list_path = change_word_list()
+            first_round = False
+
+        # 2.2.
+        secret_word = change_secret_word(word_list_path)
+
+        # starting the game
+        hangman(secret_word)
+
+        # finished the game - ask if want another round
+        if get_yes_no("Would you like to play another game?"):
+            sys_comment("Starting another game")
         else:
             sys_comment("Quitting")
             break
